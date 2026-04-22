@@ -1,10 +1,10 @@
-from typing import Any
+from typing import Any, AsyncGenerator
 
 from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
 import os
 
-from client.response import TextDelta, TokenUsage
+from client.response import EventType, StreamEvent, TextDelta, TokenUsage
 
 load_dotenv()
 
@@ -28,7 +28,7 @@ class LLMClient:
         messages: list[dict[str, Any]],
         stream: bool = True,
         max_tokens: int = 1024,
-    ):
+    ) -> AsyncGenerator[StreamEvent, None]:
         client = self.get_client()
 
         system_parts = [m["content"] for m in messages if m.get("role") == "system"]
@@ -43,9 +43,13 @@ class LLMClient:
             kwargs["system"] = "\n\n".join(system_parts)
 
         if stream:
-            return await self._stream_response(client, kwargs)
+            event = await self._stream_response(client, kwargs)
+            yield event
         else:
-            return await self._non_stream_response(client, kwargs)
+            event = await self._non_stream_response(client, kwargs)
+            yield event
+        return
+    
 
     async def _stream_response(
         self,
@@ -62,7 +66,7 @@ class LLMClient:
         self,
         client: AsyncAnthropic,
         kwargs: dict[str, Any],
-    ):
+    ) -> StreamEvent:
         response = await client.messages.create(**kwargs)
         message = response.content[0].text
 
@@ -70,6 +74,7 @@ class LLMClient:
         if message:
             text_delta = TextDelta(content=message)
         
+        usage = None
         if response.usage:
             usage = TokenUsage(
                 prompt_tokens=response.usage.input_tokens,
@@ -77,4 +82,12 @@ class LLMClient:
                 total_tokens=response.usage.input_tokens + response.usage.output_tokens,
                 cached_tokens=response.usage.cache_read_input_tokens
             )
+
+        return StreamEvent(
+            type=EventType.TEXT_DELTA,
+            text_delta=text_delta,
+            finish_reason=response.stop_reason,
+            usage=usage,
+        )
+    
 
