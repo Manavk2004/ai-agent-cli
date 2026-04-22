@@ -5,7 +5,7 @@ from anthropic import APIConnectionError, APIError, AsyncAnthropic, RateLimitErr
 from dotenv import load_dotenv
 import os
 
-from client.response import EventType, StreamEvent, TextDelta, TokenUsage
+from client.response import StreamEventType, StreamEvent, TextDelta, TokenUsage
 
 load_dotenv()
 
@@ -63,7 +63,7 @@ class LLMClient:
                     await asyncio.sleep(wait_time)
                 else:
                     yield StreamEvent(
-                        type=EventType.ERROR,
+                        type=StreamEventType.ERROR,
                         error= f"rate limti exceeded: {e}"
                     )
                     return
@@ -74,14 +74,14 @@ class LLMClient:
                     await asyncio.sleep(wait_time)
                 else:
                     yield StreamEvent(
-                        type=EventType.ERROR,
+                        type=StreamEventType.ERROR,
                         error= f"Connection error: {e}"
                     )
                     return
 
             except APIError as e:
                 yield StreamEvent(
-                    type=EventType.ERROR,
+                    type=StreamEventType.ERROR,
                     error= f"Connection error: {e}"
                 )
 
@@ -111,7 +111,7 @@ class LLMClient:
                 cached_tokens = chunk.message.usage.cache_read_input_tokens or 0
             elif chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
                 yield StreamEvent(
-                    type=EventType.TEXT_DELTA,
+                    type=StreamEventType.TEXT_DELTA,
                     text_delta=TextDelta(content=chunk.delta.text),
                 )
             elif chunk.type == "message_delta":
@@ -119,7 +119,7 @@ class LLMClient:
                 stop_reason = chunk.delta.stop_reason
 
         yield StreamEvent(
-            type=EventType.MESSAGE_COMPLETE,
+            type=StreamEventType.MESSAGE_COMPLETE,
             finish_reason=stop_reason,
             usage=TokenUsage(
                 prompt_tokens=input_tokens,
@@ -154,7 +154,7 @@ class LLMClient:
             )
 
         return StreamEvent(
-            type=EventType.MESSAGE_COMPLETE,
+            type=StreamEventType.MESSAGE_COMPLETE,
             text_delta=text_delta,
             finish_reason=response.stop_reason,
             usage=usage,
