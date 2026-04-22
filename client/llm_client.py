@@ -43,24 +43,50 @@ class LLMClient:
             kwargs["system"] = "\n\n".join(system_parts)
 
         if stream:
-            event = await self._stream_response(client, kwargs)
-            yield event
+            async for event in self._stream_response(client, kwargs):
+                yield event
         else:
             event = await self._non_stream_response(client, kwargs)
             yield event
-        return
-    
 
     async def _stream_response(
         self,
         client: AsyncAnthropic,
         kwargs: dict[str, Any],
-    ):
-        async with client.messages.stream(**kwargs) as stream:
-            async for text in stream.text_stream:
-                print(text, end="", flush=True)
-            print()
-            return await stream.get_final_message()
+    ) -> AsyncGenerator[StreamEvent, None]:
+        response = await client.messages.create(**kwargs, stream=True)
+
+        input_tokens = 0
+        cached_tokens = 0
+        output_tokens = 0
+        stop_reason = None
+
+        async for chunk in response:
+            if chunk.type == "message_start":
+                input_tokens = chunk.message.usage.input_tokens
+                cached_tokens = chunk.message.usage.cache_read_input_tokens or 0
+            elif chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
+                yield StreamEvent(
+                    type=EventType.TEXT_DELTA,
+                    text_delta=TextDelta(content=chunk.delta.text),
+                )
+            elif chunk.type == "message_delta":
+                output_tokens = chunk.usage.output_tokens
+                stop_reason = chunk.delta.stop_reason
+
+        yield StreamEvent(
+            type=EventType.MESSAGE_COMPLETE,
+            finish_reason=stop_reason,
+            usage=TokenUsage(
+                prompt_tokens=input_tokens,
+                completion_tokens=output_tokens,
+                total_tokens=input_tokens + output_tokens,
+                cached_tokens=cached_tokens,
+            ),
+        )
+
+
+
 
     async def _non_stream_response(
         self,
@@ -84,7 +110,7 @@ class LLMClient:
             )
 
         return StreamEvent(
-            type=EventType.TEXT_DELTA,
+            type=EventType.MESSAGE_COMPLETE,
             text_delta=text_delta,
             finish_reason=response.stop_reason,
             usage=usage,
