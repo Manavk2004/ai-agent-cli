@@ -11,7 +11,7 @@ class TextDelta:
         return self.content
 
 @dataclass
-class EventType(str, Enum):
+class StreamEventType(str, Enum):
     TEXT_DELTA = 'text_delta'
     MESSAGE_COMPLETE = 'message_complete'
     ERROR = 'error'
