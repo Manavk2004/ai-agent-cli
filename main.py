@@ -23,10 +23,15 @@ class CLI:
     async def _process_message(self, message: str) -> str | None:
         if not self.agent:
             return None
+        
+        assistant_streaming = False
 
         async for event in self.agent.run(message):
             if event.type == AgentEventType.TEXT_DELTA:
                 content = event.data.get("content", "")
+                if not assistant_streaming:
+                    self.tui.begin_assistant()
+                    assistant_streaming = True
                 self.tui.stream_assistant_delta(content)
 
             
