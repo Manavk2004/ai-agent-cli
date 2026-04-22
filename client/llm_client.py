@@ -1,6 +1,7 @@
+import asyncio
 from typing import Any, AsyncGenerator
 
-from anthropic import AsyncAnthropic
+from anthropic import APIConnectionError, APIError, AsyncAnthropic, RateLimitError
 from dotenv import load_dotenv
 import os
 
@@ -12,6 +13,7 @@ load_dotenv()
 class LLMClient:
     def __init__(self) -> None:
         self._client: AsyncAnthropic | None = None
+        self._max_retries: int = 3
 
     def get_client(self) -> AsyncAnthropic:
         if self._client is None:
@@ -29,6 +31,7 @@ class LLMClient:
         stream: bool = True,
         max_tokens: int = 1024,
     ) -> AsyncGenerator[StreamEvent, None]:
+        
         client = self.get_client()
 
         system_parts = [m["content"] for m in messages if m.get("role") == "system"]
@@ -39,15 +42,56 @@ class LLMClient:
             "messages": non_system,
             "max_tokens": max_tokens,
         }
-        if system_parts:
-            kwargs["system"] = "\n\n".join(system_parts)
+    
+        for attempt in range(self._max_retries + 1):
+            try:
+                if system_parts:
+                    kwargs["system"] = "\n\n".join(system_parts)
 
-        if stream:
-            async for event in self._stream_response(client, kwargs):
-                yield event
-        else:
-            event = await self._non_stream_response(client, kwargs)
-            yield event
+
+                if stream:
+                    async for event in self._stream_response(client, kwargs):
+                        yield event
+
+
+                else:
+                    event = await self._non_stream_response(client, kwargs)
+                    yield event
+            except RateLimitError as e:
+                if attempt < self._max_retries:
+                    wait_time = 2**attempt
+                    await asyncio.sleep(wait_time)
+                else:
+                    yield StreamEvent(
+                        type=EventType.ERROR,
+                        error= f"rate limti exceeded: {e}"
+                    )
+                    return
+
+            except APIConnectionError as e:
+                if attempt < self._max_retries:
+                    wait_time = 2**attempt
+                    await asyncio.sleep(wait_time)
+                else:
+                    yield StreamEvent(
+                        type=EventType.ERROR,
+                        error= f"Connection error: {e}"
+                    )
+                    return
+
+            except APIError as e:
+                yield StreamEvent(
+                    type=EventType.ERROR,
+                    error= f"Connection error: {e}"
+                )
+
+                return
+
+
+
+
+
+
 
     async def _stream_response(
         self,
@@ -115,5 +159,6 @@ class LLMClient:
             finish_reason=response.stop_reason,
             usage=usage,
         )
+    
     
 
