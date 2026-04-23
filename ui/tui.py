@@ -51,5 +51,11 @@ class TUI:
         self.console.print(Rule(Text("Assistant", style="as")))
         self._assistant_stream_open = True
 
+
+    def end_assistant(self) -> None:
+        if self._assistant_stream_open:
+            self.console.print()
+        self._assistant_stream_open = False
+
     def stream_assistant_delta(self, content: str) -> None:
         self.console.print(content, end="", markup=False)

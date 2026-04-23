@@ -57,6 +57,7 @@ class LLMClient:
                 else:
                     event = await self._non_stream_response(client, kwargs)
                     yield event
+                return
             except RateLimitError as e:
                 if attempt < self._max_retries:
                     wait_time = 2**attempt
