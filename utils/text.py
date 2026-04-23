@@ -1,4 +1,3 @@
-import tiktoken
 from anthropic import AsyncAnthropic
 
 _client: AsyncAnthropic | None = None

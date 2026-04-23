@@ -10,12 +10,12 @@ from context.manager import ContextManager
 class Agent:
     def __init__(self):
         self.client = LLMClient()
-        self.context_mansger = ContextManager()
+        self.context_manager = ContextManager()
 
 
     async def run(self, message: str):
         yield AgentEvent.agent_start(message)
-        self.context_mansger.add_user_message(message)
+        self.context_manager.add_user_message(message)
         # Add user message to context
 
         final_response: str | None = None
@@ -33,7 +33,7 @@ class Agent:
     async def _agentic_loop(self) -> AsyncGenerator[AgentEvent, None]:
         response_text = ""
         
-        async for event in self.client.chat_completion(self.context_mansger.get_messages(), True):
+        async for event in self.client.chat_completion(self.context_manager.get_messages(), True):
             if event.type == StreamEventType.TEXT_DELTA:
                 content = event.text_delta.content
                 response_text += content
@@ -43,7 +43,7 @@ class Agent:
                 yield AgentEvent.agent_error(event.error or "Unknown error occurred")
                 
 
-        self.context_mansger.add_assistant_message(
+        self.context_manager.add_assistant_message(
             response_text or None
         )
 

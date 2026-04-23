@@ -1,13 +1,13 @@
 from datetime import datetime
 import platform
+import sys
 from config.config import Config
-from tools.base import Tool
 
 
 def get_system_prompt(
-    config: Config,
+    config: Config | None = None,
     user_memory: str | None = None,
-    tools: list[Tool] | None = None,
+    # tools: list[Tool] | None = None,
 ) -> str:
     parts = []
 
@@ -16,8 +16,8 @@ def get_system_prompt(
     # Environment
     parts.append(_get_environment_section(config))
 
-    if tools:
-        parts.append(_get_tool_guidelines_section(tools))
+    # if tools:
+    #     parts.append(_get_tool_guidelines_section(tools))
 
     # AGENTS.md spec
     parts.append(_get_agents_md_section())
@@ -25,14 +25,14 @@ def get_system_prompt(
     # Security guidelines
     parts.append(_get_security_section())
 
-    if config.developer_instructions:
-        parts.append(_get_developer_instructions_section(config.developer_instructions))
+    # if config.developer_instructions:
+    #     parts.append(_get_developer_instructions_section(config.developer_instructions))
 
-    if config.user_instructions:
-        parts.append(_get_user_instructions_section(config.user_instructions))
+    # if config.user_instructions:
+    #     parts.append(_get_user_instructions_section(config.user_instructions))
 
-    if user_memory:
-        parts.append(_get_memory_section(user_memory))
+    # if user_memory:
+    #     parts.append(_get_memory_section(user_memory))
     # Operational guidelines
     parts.append(_get_operational_section())
 
