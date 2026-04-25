@@ -3,7 +3,7 @@ import sys
 import click
 
 from agent.agent import Agent
-from agent.events import AgentEventType
+from agent.llm_events import AgentEventType
 from ui.tui import TUI, get_console
 
 
@@ -40,7 +40,7 @@ class CLI:
                 if assistant_streaming:
                     self.tui.end_assistant()
                     assistant_streaming = False
-                    
+
             elif event.type == AgentEventType.AGENT_ERROR:
                 error = event.data.get('error', 'Unknown error')
                 console.print(f"\n[error]Error: {error}[/error]")

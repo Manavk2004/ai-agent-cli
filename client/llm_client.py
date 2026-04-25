@@ -1,11 +1,10 @@
+import json
 import asyncio
 from typing import Any, AsyncGenerator
-
 from anthropic import APIConnectionError, APIError, AsyncAnthropic, RateLimitError
 from dotenv import load_dotenv
 import os
-
-from client.response import StreamEventType, StreamEvent, TextDelta, TokenUsage
+from client.llm_response import StreamEventType, StreamEvent, TextDelta, TokenUsage
 
 load_dotenv()
 
@@ -25,9 +24,27 @@ class LLMClient:
             await self._client.close()
             self._client = None
 
+
+    def _build_tools(self, tools: list[dict[str, Any]]):
+        return [
+            {
+                'name': tool['name'],
+                'description': tool.get('description', ""),
+                'input_schema': tool.get(
+                    "input_schema",
+                    tool.get(
+                        "parameters",
+                        {"type": "object", "properties": {}},
+                    ),
+                ),
+            }
+            for tool in tools
+        ]
+
     async def chat_completion(
         self,
         messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
         stream: bool = True,
         max_tokens: int = 1024,
     ) -> AsyncGenerator[StreamEvent, None]:
@@ -42,9 +59,16 @@ class LLMClient:
             "messages": non_system,
             "max_tokens": max_tokens,
         }
+
+        print("Tools1")
+
+        if tools:
+            kwargs['tools'] = self._build_tools(tools)
+            kwargs['tool_choice'] = {'type': 'auto'}
     
         for attempt in range(self._max_retries + 1):
             try:
+                print("Trying")
                 if system_parts:
                     kwargs["system"] = "\n\n".join(system_parts)
 
@@ -106,18 +130,51 @@ class LLMClient:
         output_tokens = 0
         stop_reason = None
 
+        current_tool_use = None
+
         async for chunk in response:
             if chunk.type == "message_start":
                 input_tokens = chunk.message.usage.input_tokens
                 cached_tokens = chunk.message.usage.cache_read_input_tokens or 0
-            elif chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
-                yield StreamEvent(
-                    type=StreamEventType.TEXT_DELTA,
-                    text_delta=TextDelta(content=chunk.delta.text),
-                )
+
+            elif chunk.type == "content_block_start":
+                if chunk.content_block.type == "tool_use":
+                    current_tool_use = {
+                        "id": chunk.content_block.id,
+                        "name": chunk.content_block.name,
+                        "json": "",
+                    }
+
+            elif chunk.type == "content_block_delta":
+                if chunk.delta.type == "text_delta":
+                    yield StreamEvent(
+                        type=StreamEventType.TEXT_DELTA,
+                        text_delta=TextDelta(content=chunk.delta.text),
+                    )
+                elif chunk.delta.type == "input_json_delta" and current_tool_use is not None:
+                    current_tool_use["json"] += chunk.delta.partial_json
+
+            elif chunk.type == "content_block_stop":
+                if current_tool_use is not None:
+                    print({
+                        "id": current_tool_use["id"],
+                        "name": current_tool_use["name"],
+                        "input": json.loads(current_tool_use['json'] or "{}")
+                    })
+                    yield StreamEvent(
+                        type=StreamEventType.TOOL_USE,
+                        tool_use={
+                            "id": current_tool_use["id"],
+                            "name": current_tool_use["name"],
+                            "input": json.loads(current_tool_use["json"] or "{}"),
+                        },
+                    )
+                    current_tool_use = None
             elif chunk.type == "message_delta":
                 output_tokens = chunk.usage.output_tokens
                 stop_reason = chunk.delta.stop_reason
+            
+            
 
         yield StreamEvent(
             type=StreamEventType.MESSAGE_COMPLETE,

@@ -1,10 +1,10 @@
 from typing import Any
 
 from config.config import Config
-from prompts.system import get_system_prompt
+from prompts.system_prompt import get_system_prompt
 from dataclasses import dataclass
 
-from utils.text import estimate_tokens
+from utils.truncate import estimate_tokens
 
 
 @dataclass
@@ -16,7 +16,7 @@ class MessageItem:
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {"role": self.role}
 
-        if self.content:
+        if self.content is not None:
             result['content'] = self.content
 
         return result

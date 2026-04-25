@@ -1,7 +1,10 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from client.llm_response import TokenUsage
 
 
 class AgentEventType(str, Enum):

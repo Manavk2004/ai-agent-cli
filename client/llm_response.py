@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 @dataclass
@@ -14,6 +15,7 @@ class StreamEventType(str, Enum):
     TEXT_DELTA = 'text_delta'
     MESSAGE_COMPLETE = 'message_complete'
     ERROR = 'error'
+    TOOL_USE = "tool_use"
 
 
 @dataclass
@@ -34,8 +36,10 @@ class TokenUsage:
 
 @dataclass
 class StreamEvent:
-    type: EventType
+    type: StreamEventType
+    tool_use: dict[str, Any] | None = None
     text_delta: TextDelta | None = None
     error: str | None = None
     finish_reason: str | None = None
     usage: TokenUsage | None = None
+    

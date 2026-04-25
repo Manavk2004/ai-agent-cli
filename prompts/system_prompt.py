@@ -9,6 +9,9 @@ def get_system_prompt(
     user_memory: str | None = None,
     # tools: list[Tool] | None = None,
 ) -> str:
+    if config is None:
+        config = Config()
+
     parts = []
 
     # Identity and role
